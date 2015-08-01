@@ -4,7 +4,7 @@
 
 Interface gInterface;
 
-// Generic Art Taggin Server
+// Generic Art Tagging Server
 int main(int argc, char *argv[])
 {
 	while (gInterface.isGood())
@@ -12,5 +12,6 @@ int main(int argc, char *argv[])
 		gInterface.draw();
 		gInterface.getInput();
 	}
+	// Susmaster
 	return 0;
 }
