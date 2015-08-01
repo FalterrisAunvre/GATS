@@ -3,6 +3,7 @@
 GATS stands for Generic All-purpose Tagging Server. It is designed to be a faster, simpler alternative to other gallery software like Hydrus Network, while allowing for customization and extensibility.
 
 ## Dependencies
+  * Crypto++ 5.6.2
   * CxImage 7.0.1
 
 ## Features
