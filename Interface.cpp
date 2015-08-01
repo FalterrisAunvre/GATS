@@ -96,26 +96,41 @@ void Interface::getInput()
 			}
 			break;
 		case State_Files:
-			const char* const formats[] = { "*.bmp", "*.jpg", "*.jpeg", "*.png", "*.gif" };
-			std::string files = tinyfd_openFileDialog("Select File(s)",
-				"",
-				5,
-				formats,
-				"All Media Types",
-				1);
-			std::vector<std::string> filelist;
-			_splitString(files, '|', filelist);
-			int errorCount = 0;
-			for (auto i : filelist)
+			if (str == "1")
 			{
-				if (!addEntry(i.c_str()))
-					errorCount++;
+				const char* const formats[] = { "*.bmp", "*.jpg", "*.jpeg", "*.png", "*.gif" };
+				const char* dialog = tinyfd_openFileDialog("Select File(s)",
+					"",
+					5,
+					formats,
+					"All Media Types",
+					1);
+				if (dialog)
+				{
+					std::string files = dialog;
+					std::vector<std::string> filelist;
+					_splitString(files, '|', filelist);
+					int errorCount = 0;
+					for (auto i : filelist)
+					{
+						if (!addEntry(i.c_str()))
+							errorCount++;
+					}
+					if (errorCount > 0)
+					{
+						system("CLS");
+						printf("%d entries could not be added!\n");
+						system("PAUSE");
+					}
+				}
 			}
-			if (errorCount > 0)
+			else if (str == "2")
 			{
-				system("CLS");
-				printf("%d entries could not be added!\n");
-				system("PAUSE");
+				const char* dialog = tinyfd_selectFolderDialog("Select Folder", "");
+				if (dialog)
+				{
+
+				}
 			}
 			break;
 		}
@@ -275,6 +290,20 @@ bool Interface::findImage(const char *name, int *retId)
 
 	if (retId) *retId = results.id;
 	return results.bSuccess;
+}
+
+bool Interface::addDirectory(const char* _path)
+{
+	using namespace std::tr2;
+	sys::path path = _path;
+	if (sys::exists(path))
+	{
+		sys::recursive_directory_iterator end;
+		for (sys::recursive_directory_iterator iter(path); iter != end; iter++)
+		{
+
+		}
+	}
 }
 
 bool Interface::addEntry(const char* _path)

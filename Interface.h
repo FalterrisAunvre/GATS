@@ -55,5 +55,6 @@ public:
 	bool findTag(const char* name, int *retId = nullptr);
 	bool addTagCheckIfExists(const char* name);
 	bool findImage(const char* name, int *retId = nullptr);
-	bool addEntry(const char* path);
+	bool addEntry(const char* _path);
+	bool addDirectory(const char* _path);
 };
