@@ -12,6 +12,5 @@ int main(int argc, char *argv[])
 		gInterface.draw();
 		gInterface.getInput();
 	}
-	// Susmaster
 	return 0;
 }

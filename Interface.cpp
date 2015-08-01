@@ -259,7 +259,7 @@ bool Interface::findImage(const char *name, int *retId)
 		}
 	};
 
-	std::string sqlString = "SELECT id FROM images WHERE filename = '";
+	std::string sqlString = "SELECT DISTINCT id FROM images WHERE filename = '";
 	sqlString += name;
 	sqlString += "'";
 
@@ -302,7 +302,9 @@ bool Interface::addEntry(const char* _path)
 				hashString[i] = tolower(hashString[i]);
 			}
 		}
+		delete loadedFile;
 
+		/*
 		// Determine the file's type based on it's magic number.
 		std::string ext = "";
 		uint16_t *r1 = reinterpret_cast<uint16_t*>(loadedFile);
@@ -312,60 +314,119 @@ bool Interface::addEntry(const char* _path)
 		if (*r1 == 0x424D) ext = "bmp";
 		else if (*r3 == 0x474946383761 || static_cast<uint64_t>(*loadedFile) == 0x474946383961) ext = "gif";
 		else if (loadedFile[0] == 0xFF && loadedFile[1] == 0xD8 && loadedFile[2] == 0xFF && loadedFile[3] == 0xE0) ext = "jpg";
-		else if (*r3 == 0x89504E470D0A1A0A) ext = "png";
-		
-		delete loadedFile;
+		else if (*r3 == 0x89504E470D0A1A0A) ext = "png";*/
 
-		if (ext != "")
+		if (false /*Check for swf+video magic numbers*/)
 		{
-			// Generate save directory.
-			std::string basePath = hashString.substr(0, 2) + "/" + hashString.substr(2, 2) + "/" + hashString;
-			std::string thumbPath = "thumbs/" + basePath + ".jpg";
-			std::string imgPath = "images/" + basePath + "." + ext;
+
+		}
+		else
+		{
+			CxImage image;
+			std::string ext = "";
+			if (image.Load(_path))
 			{
-				char thispath[512];
-				GetModuleFileName(NULL, thispath, 512);
-				PathRemoveFileSpec(thispath);
-				sys::current_path(sys::path(thispath));
-				sys::path tpath = "thumbs/" + hashString.substr(0, 2) + "/" + hashString.substr(2, 2) + "/", ipath = "images/" + hashString.substr(0, 2) + "/" + hashString.substr(2, 2) + "/";
-				sys::create_directories(tpath);
-				sys::create_directories(ipath);
-				//sys::cu
+				uint32_t imgType = image.GetType();
+				if (imgType != CXIMAGE_FORMAT_UNKNOWN)
+				{
+					switch (imgType)
+					{
+					case CXIMAGE_FORMAT_BMP: ext = "bmp"; break;
+					case CXIMAGE_FORMAT_GIF: ext = "gif"; break;
+					case CXIMAGE_FORMAT_JP2: ext = "jp2"; break;
+					case CXIMAGE_FORMAT_JPC: ext = "jpc"; break;
+					case CXIMAGE_FORMAT_JPG: ext = "jpg"; break;
+					case CXIMAGE_FORMAT_MNG: ext = "mng"; break;
+					case CXIMAGE_FORMAT_PCX: ext = "pcx"; break;
+					case CXIMAGE_FORMAT_PGX: ext = "pgx"; break;
+					case CXIMAGE_FORMAT_PNG: ext = "png"; break;
+					case CXIMAGE_FORMAT_PNM: ext = "pnm"; break;
+					case CXIMAGE_FORMAT_PSD: ext = "psd"; break;
+					case CXIMAGE_FORMAT_RAS: ext = "ras"; break;
+					case CXIMAGE_FORMAT_RAW: ext = "raw"; break;
+					case CXIMAGE_FORMAT_SKA: ext = "ska"; break;
+					case CXIMAGE_FORMAT_TGA: ext = "tga"; break;
+					case CXIMAGE_FORMAT_TIF: ext = "tif"; break;
+					case CXIMAGE_FORMAT_WBMP: ext = "wbmp"; break;
+					case CXIMAGE_FORMAT_WMF: ext = "wmf"; break;
+					}
+
+					std::string basePath = hashString.substr(0, 2) + "/" + hashString.substr(2, 2) + "/" + hashString;
+					std::string thumbPath = "preview/" + basePath + ".jpg";
+					std::string imgPath = "images/" + basePath + "." + ext;
+					// Creates the necessary directories
+					{
+						char thispath[512];
+						GetModuleFileName(NULL, thispath, 512);
+						PathRemoveFileSpec(thispath);
+						sys::current_path(sys::path(thispath));
+						sys::path tpath = "preview/" + hashString.substr(0, 2) + "/" + hashString.substr(2, 2) + "/", ipath = "images/" + hashString.substr(0, 2) + "/" + hashString.substr(2, 2) + "/";
+						sys::create_directories(tpath);
+						sys::create_directories(ipath);
+					}
+					const unsigned int FULLSIZE = 150;
+					unsigned int width = image.GetWidth(), height = image.GetHeight();
+					if (width > height)
+					{
+						height = (height / width) * FULLSIZE;
+						width = FULLSIZE;
+					}
+					else
+					{
+						width = (width / height) * FULLSIZE;
+						height = FULLSIZE;
+					}
+					image.Save(imgPath.c_str(), image.GetType());
+					image.Resample(width, height);
+					image.Save(thumbPath.c_str(), CXIMAGE_FORMAT_JPG);
+
+					std::string sqlString = "INSERT INTO images(filename, extension) VALUES(\"";
+					sqlString += hashString;
+					sqlString += "\",\"";
+					sqlString += ext;
+					sqlString += "\");";
+					sqlite3_exec(_database, sqlString.c_str(), nullptr, nullptr, nullptr);
+
+					return findImage()
+				}
+				else // Image is of unknown file format
+				{
+
+				}
+			}
+			else // Failure to load image (shouldn't happen)
+			{
+
 			}
 
-			// Copy the image to the main directory.
-			
-
-
-
-			// Create the thumbnail and save it to the thumbnail directory.
+			if (ext != "")
 			{
-				const unsigned int FULLSIZE = 150;
-				//unsigned int width = img.getWidth(), height = img.getHeight();
-				if (width > height)
-				{
-					height = (height / width) * FULLSIZE;
-					width = FULLSIZE;
-				}
-				else
-				{
-					width = (width / height) * FULLSIZE;
-					height = FULLSIZE;
-				}
+				// Generate save directory.
 				
+
+				// Copy the image to the main directory.
+
+
+					// Create the thumbnail and save it to the thumbnail directory.
+				{
+					
+					//unsigned int width = img.getWidth(), height = img.getHeight();
+					
+
+				}
+
+				std::string sqlString = "INSERT INTO images(filename, extension) VALUES(\"";
+				sqlString += hashString;
+				sqlString += "\",\"";
+				sqlString += ext;
+				sqlString += "\");";
+				sqlite3_exec(_database, sqlString.c_str(), nullptr, nullptr, nullptr);
+
+				int id = -1;
+				findImage(_path, &id);
+
+				return true;
 			}
-
-			std::string sqlString = "INSERT INTO images(filename, extension) VALUES(\"";
-			sqlString += hashString;
-			sqlString += "\",\"";
-			sqlString += ext;
-			sqlString += "\");";
-			sqlite3_exec(_database, sqlString.c_str(), nullptr, nullptr, nullptr);
-
-			int id = -1;
-			findImage(_path, &id);
-
-			return true;
 		}
 	}
 }

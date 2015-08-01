@@ -1,9 +1,9 @@
 #pragma once
 #pragma comment(lib, "shlwapi.lib")
 
+#include <ximage.h>
 #include <conio.h>
 #include <filesystem>
-#include <FreeImagePlus.h>
 #include <functional>
 #include <hex.h>
 #include <iostream>
