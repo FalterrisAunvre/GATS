@@ -1,0 +1,59 @@
+#pragma once
+#pragma comment(lib, "shlwapi.lib")
+
+#include <conio.h>
+#include <filesystem>
+#include <FreeImagePlus.h>
+#include <functional>
+#include <hex.h>
+#include <iostream>
+#include <md5.h>
+#include <stack>
+#include <cstdint>
+#include <sstream>
+#include <Shlwapi.h>
+#include <string>
+#include <vector>
+#include <Windows.h>
+
+#include "sqlite3.h"
+#include "tinyfiledialogs.h"
+
+#define GATS_VERSION "v0.0.01 alpha"
+
+class Interface
+{
+private:
+	void splitString(const std::string str, char delimiter, std::vector<std::string> &list);
+
+	std::stack<int> _states;
+	std::string _message;
+
+	bool _bServerIsUp;
+	unsigned int _serverPort;
+
+	sqlite3 *_database;
+public:
+	enum StateEnum
+	{
+		State_Exit,
+		State_Main,
+		State_Database,
+		State_Server,
+		State_Lua,
+		State_Files,
+		State_Collections,
+		State_Tags,
+		STATECOUNT
+	};
+	Interface();
+	~Interface();
+	void getInput();
+	void draw();
+	bool isGood();
+	bool addTag(const char* name);
+	bool findTag(const char* name, int *retId = nullptr);
+	bool addTagCheckIfExists(const char* name);
+	bool findImage(const char* name, int *retId = nullptr);
+	bool addEntry(const char* path);
+};
