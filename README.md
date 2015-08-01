@@ -1,6 +1,26 @@
 # GATS
 ## About
 GATS stands for Generic All-purpose Tagging Server. It is designed to be a faster, simpler alternative to other gallery software like Hydrus Network, while allowing for customization and extensibility.
+#### The following file types are supported:
+##### Images
+  * .bmp
+  * .gif
+  * .jp2
+  * .jpc
+  * .jpg
+  * .mng
+  * .pcx
+  * .pgx
+  * .png
+  * .pnm
+  * .psd
+  * .ras
+  * .raw
+  * .ska
+  * .tga
+  * .tif
+  * .wbmp
+  * .wmf
 
 ## Dependencies
   * Crypto++ 5.6.2
