@@ -24,7 +24,7 @@
 class Interface
 {
 private:
-	void splitString(const std::string str, char delimiter, std::vector<std::string> &list);
+	void _splitString(const std::string str, char delimiter, std::vector<std::string> &list);
 
 	std::stack<int> _states;
 	std::string _message;

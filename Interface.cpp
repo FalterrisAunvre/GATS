@@ -28,7 +28,7 @@ Interface::~Interface()
 	sqlite3_close(_database);
 }
 
-void Interface::splitString(const std::string str, char delimiter, std::vector<std::string> &list)
+void Interface::_splitString(const std::string str, char delimiter, std::vector<std::string> &list)
 {
 	std::stringstream ss(str);
 	std::string item;
@@ -104,10 +104,18 @@ void Interface::getInput()
 				"All Media Types",
 				1);
 			std::vector<std::string> filelist;
-			splitString(files, '|', filelist);
+			_splitString(files, '|', filelist);
+			int errorCount = 0;
 			for (auto i : filelist)
 			{
-				addEntry(i.c_str());
+				if (!addEntry(i.c_str()))
+					errorCount++;
+			}
+			if (errorCount > 0)
+			{
+				system("CLS");
+				printf("%d entries could not be added!\n");
+				system("PAUSE");
 			}
 			break;
 		}
@@ -263,7 +271,7 @@ bool Interface::findImage(const char *name, int *retId)
 	sqlString += name;
 	sqlString += "'";
 
-	sqlite3_exec(_database, sqlString.c_str(), predicate::func, nullptr, nullptr);
+	sqlite3_exec(_database, sqlString.c_str(), predicate::func, &results, nullptr);
 
 	if (retId) *retId = results.id;
 	return results.bSuccess;
@@ -286,12 +294,11 @@ bool Interface::addEntry(const char* _path)
 		// Get the MD5 hash.
 		std::string hashString;
 		{
-			CryptoPP::MD5 md5;
+			CryptoPP::Weak1::MD5 md5;
 			byte digest[CryptoPP::MD5::DIGESTSIZE];
 			md5.CalculateDigest(digest, loadedFile, size);
 
 			CryptoPP::HexEncoder hex;
-			//CryptoPP::StringSink *sink = ;
 			hex.Attach(new CryptoPP::StringSink(hashString));
 			hex.Put(digest, sizeof(digest));
 			hex.MessageEnd();
@@ -364,16 +371,16 @@ bool Interface::addEntry(const char* _path)
 						sys::create_directories(tpath);
 						sys::create_directories(ipath);
 					}
-					const unsigned int FULLSIZE = 150;
+					const float FULLSIZE = 150.f;
 					unsigned int width = image.GetWidth(), height = image.GetHeight();
 					if (width > height)
 					{
-						height = (height / width) * FULLSIZE;
+						height = (((float)height / (float)width)) * FULLSIZE;
 						width = FULLSIZE;
 					}
 					else
 					{
-						width = (width / height) * FULLSIZE;
+						width = ((float)(width / height)) * FULLSIZE;
 						height = FULLSIZE;
 					}
 					image.Save(imgPath.c_str(), image.GetType());
@@ -387,7 +394,10 @@ bool Interface::addEntry(const char* _path)
 					sqlString += "\");";
 					sqlite3_exec(_database, sqlString.c_str(), nullptr, nullptr, nullptr);
 
-					return findImage()
+					/*std::string qry = hashString;
+					qry += ".";
+					qry += ext;*/
+					return findImage(hashString.c_str());
 				}
 				else // Image is of unknown file format
 				{

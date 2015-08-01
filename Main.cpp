@@ -1,3 +1,5 @@
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+
 #include <iostream>
 
 #include "Interface.h"
