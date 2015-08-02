@@ -1,6 +1,7 @@
 #pragma once
 #pragma comment(lib, "shlwapi.lib")
 
+#include <array>
 #include <ximage.h>
 #include <conio.h>
 #include <filesystem>
@@ -46,6 +47,16 @@ public:
 		State_Tags,
 		STATECOUNT
 	};
+	enum ErrorEnum
+	{
+		Error_None,
+		Error_FileDoesntExist,
+		Error_HashCollision,
+		Error_FailedToLoad,
+		Error_UnsupportedFormat,
+		Error_SQLiteError,
+		ERRORCOUNT
+	};
 	Interface();
 	~Interface();
 	void getInput();
@@ -55,6 +66,6 @@ public:
 	bool findTag(const char* name, int *retId = nullptr);
 	bool addTagCheckIfExists(const char* name);
 	bool findImage(const char* name, int *retId = nullptr);
-	bool addEntry(const char* _path);
+	unsigned int addEntry(const char* _path);
 	bool addDirectory(const char* _path);
 };
