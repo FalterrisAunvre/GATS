@@ -17,8 +17,10 @@
 #include <vector>
 #include <Windows.h>
 
+#include "mongoose.h"
 #include "rlutil.h"
 #include "rlutilextras.h"
+#include "Server.h"
 #include "sqlite3.h"
 #include "tinyfiledialogs.h"
 
@@ -28,6 +30,7 @@ class Interface
 {
 private:
 	int _countTags();
+	unsigned int _nextEntryId();
 	void _splitString(const std::string str, char delimiter, std::vector<std::string> &list);
 
 	unsigned int _page;
@@ -35,6 +38,7 @@ private:
 	std::stack<int> _states;
 	std::string _message;
 
+	mg_server *_server;
 	bool _bServerIsUp;
 	unsigned int _serverPort;
 
@@ -68,6 +72,8 @@ public:
 	void getInput();
 	void draw();
 	bool isGood();
+	bool startServer();
+	bool stopServer();
 	bool addTag(const char* name);
 	bool findTag(const char* name, int *retId = nullptr);
 	bool addTagCheckIfExists(const char* name);

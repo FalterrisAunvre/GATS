@@ -74,14 +74,18 @@
   <ItemGroup>
     <ClCompile Include="Interface.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="mongoose.c" />
     <ClCompile Include="rlutilextras.cpp" />
+    <ClCompile Include="Server.cpp" />
     <ClCompile Include="sqlite3.c" />
     <ClCompile Include="tinyfiledialogs.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Interface.h" />
+    <ClInclude Include="mongoose.h" />
     <ClInclude Include="rlutil.h" />
     <ClInclude Include="rlutilextras.h" />
+    <ClInclude Include="Server.h" />
     <ClInclude Include="sqlite3.h" />
     <ClInclude Include="sqlite3ext.h" />
     <ClInclude Include="tinyfiledialogs.h" />

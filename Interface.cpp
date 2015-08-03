@@ -8,6 +8,7 @@ Interface::Interface()
 	_states.push(State_Main);
 	_message = "Welcome to " GATS_VERSION "!";
 
+	_server = nullptr;
 	_bServerIsUp = false;
 	_serverPort = 8008;
 
@@ -59,6 +60,33 @@ int Interface::_countTags()
 	return results.count;
 }
 
+unsigned int Interface::_nextEntryId()
+{
+	struct predResults
+	{
+		unsigned int id;
+		predResults()
+		{
+			id = 1U;
+		}
+	}results;
+
+	struct predicate
+	{
+		static int func(void *param, int argc, char **argv, char **colname)
+		{
+			predResults *results = static_cast<predResults*>(param);
+			results->id = static_cast<unsigned int>(atoi(argv[0]));
+			return 0;
+		}
+	};
+
+	std::string sqlString = "SELECT DISTINCT * FROM entries ORDER BY id DESC LIMIT 1";
+
+	sqlite3_exec(_database, sqlString.c_str(), predicate::func, &results, nullptr);
+	return results.id;
+}
+
 void Interface::_splitString(const std::string str, char delimiter, std::vector<std::string> &list)
 {
 	std::stringstream ss(str);
@@ -97,7 +125,21 @@ void Interface::getInput()
 			else error = true;
 			break;
 		case State_Server:
-			if (str == "1") _bServerIsUp = !_bServerIsUp;
+			if (str == "1")
+			{
+				if (!_bServerIsUp)
+				{
+					_bServerIsUp = startServer();
+					if (!_bServerIsUp)
+						_message = "Unable to start server!";
+				}
+				else
+				{
+					_bServerIsUp = !stopServer();
+					if (_bServerIsUp)
+						_message = "Unable to stop server!";
+				}
+			}
 			else if (str == "2")
 			{
 				std::string newPort;
@@ -261,6 +303,26 @@ void Interface::draw()
 bool Interface::isGood()
 {
 	return _states.size() > 0 && _states.top() != State_Exit;
+}
+
+bool Interface::startServer()
+{
+	_server = mg_create_server(nullptr, Server::eventHandler);
+
+	if (!_server)
+		return false;
+
+	char buf[8];
+	sprintf(buf, "%u", _serverPort);
+	mg_set_option(_server, "listening_port", buf);
+
+	return true;
+}
+
+bool Interface::stopServer()
+{
+	mg_destroy_server(&_server);
+	return _server == nullptr;
 }
 
 bool Interface::addTag(const char* name)
