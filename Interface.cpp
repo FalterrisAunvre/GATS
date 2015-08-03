@@ -2,8 +2,11 @@
 
 Interface::Interface()
 {
+	rlutil::hidecursor();
+	_page = 1;
+
 	_states.push(State_Main);
-	_message = "Welcome to GATS " GATS_VERSION "!";
+	_message = "Welcome to " GATS_VERSION "!";
 
 	_bServerIsUp = false;
 	_serverPort = 8008;
@@ -13,6 +16,7 @@ Interface::Interface()
 		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS entries(id INTEGER, tag INTEGER);", nullptr, NULL, NULL);
 		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS tags(id INTEGER PRIMARY KEY, name TEXT);", nullptr, NULL, NULL);
 		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS images(id INTEGER PRIMARY KEY, filename TEXT, extension TEXT);", nullptr, NULL, NULL);
+		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS collections(id INTEGER, name TEXT, entry INTEGER);", nullptr, NULL, NULL);
 	}
 	else
 	{
@@ -26,6 +30,33 @@ Interface::Interface()
 Interface::~Interface()
 {
 	sqlite3_close(_database);
+}
+
+int Interface::_countTags()
+{
+	struct predResults
+	{
+		int count;
+		predResults()
+		{
+			count = 0U;
+		}
+	}results;
+
+	struct predicate
+	{
+		static int func(void *param, int argc, char **argv, char **colname)
+		{
+			predResults *results = static_cast<predResults*>(param);
+			results->count = argc;
+			return 0;
+		}
+	};
+
+	std::string sqlString = "SELECT * FROM tags";
+
+	sqlite3_exec(_database, sqlString.c_str(), predicate::func, &results, nullptr);
+	return results.count;
 }
 
 void Interface::_splitString(const std::string str, char delimiter, std::vector<std::string> &list)
@@ -62,6 +93,7 @@ void Interface::getInput()
 			if (str == "1") _states.push(State_Files);
 			else if (str == "2") _states.push(State_Collections);
 			else if (str == "3") _states.push(State_Tags);
+			//else if (str == "4") _states.push(State_TagList);
 			else error = true;
 			break;
 		case State_Server:
@@ -94,6 +126,7 @@ void Interface::getInput()
 					}
 				}
 			}
+			else error = true;
 			break;
 		case State_Files:
 			if (str == "1")
@@ -113,7 +146,7 @@ void Interface::getInput()
 					int errorCount = 0;
 					for (auto i : filelist)
 					{
-						if (!addEntry(i.c_str()))
+						if (addEntry(i.c_str()) != Error_None)
 							errorCount++;
 					}
 					if (errorCount > 0)
@@ -132,7 +165,29 @@ void Interface::getInput()
 					addDirectory(dialog);
 				}
 			}
+			else error = true;
 			break;
+		case State_Collections:
+			if (str == "1")
+			{
+				rlutil::cls();
+				int i = 0, input = -2;
+				rlutil::mvprintf(1, 1, "Enter a name for the new collection:");
+				rlutil::showcursor();
+				std::string name = rlutil::mvreadString(1, 2);
+				rlutil::mvprintf(1, 3, "Enter the IDs of each entry in the collection (0 to finish, -1 to cancel):");
+				std::vector<int> ids;
+				while (input != 0 && input != -1)
+				{
+					input = rlutil::mvreadInt(1, 4 + i);
+					if (input != 0 && input != -1)
+					{
+						ids.push_back(input);
+						i++;
+					}
+				}
+				rlutil::hidecursor();
+			}
 		}
 		if (error) _message = "Invalid option '" + str + "'.";
 	}
@@ -140,56 +195,66 @@ void Interface::getInput()
 
 void Interface::draw()
 {
-	system("CLS");
-	
+	//system("CLS");
+	rlutil::cls();
 	if (_message.length() > 0)
 	{
-		std::cout << _message << std::endl;
+		//gotoxy(1, rlutil::trows());
+		//std::cout << _message << std::endl;
+		rlutil::mvprintf(1, rlutil::trows(), "%s", _message.c_str());
 		_message = "";
 	}
-	else std::cout << std::endl;
+
+	rlutil::mvprintf((rlutil::tcols() / 2) - (strlen(GATS_VERSION) / 2), 2, GATS_VERSION);
 
 	switch (_states.top())
 	{
 	case State_Main:
-		std::cout << "Main Menu" << std::endl
-			<< "Options:" << std::endl
-			<< "  1. Database Management" << std::endl
-			<< "  2. Server Management" << std::endl
-			<< "  3. Lua Scripts" << std::endl
-			<< std::endl << "  X. Exit" << std::endl;
+		rlutil::mvprintf((rlutil::tcols() / 2) - (strlen(GATS_VERSION) / 2), 2, GATS_VERSION);
+		rlutil::mvprintf(1, 4, "Main Menu");
+		rlutil::mvprintf(3, 5, "1. Database Management");
+		rlutil::mvprintf(3, 6, "2. Server Management");
+		rlutil::mvprintf(3, 7, "3. Lua Scripts");
+		rlutil::mvprintf(3, 9, "X. Exit");
 		break;
 	case State_Database:
-		std::cout << "Database Management" << std::endl
-			<< "Options:" << std::endl
-			<< "  1. Add/Remove Files" << std::endl
-			<< "  2. Create/Delete Collections" << std::endl
-			<< "  3. Add/Remove Tags" << std::endl
-			<< "  4. Dump File List To Clipboard" << std::endl
-			<< "  5. Dump Tag List To Clipboard" << std::endl
-			<< "  6. Dump Collection List To Clipboard" << std::endl
-			<< std::endl << "  0. Back" << std::endl << "  X. Exit" << std::endl;
+		rlutil::mvprintf(1, 4, "Main Menu > Database Management");
+		rlutil::mvprintf(3, 5, "1. Add/Remove Files");
+		rlutil::mvprintf(3, 6, "2. Create/Delete Collections");
+		rlutil::mvprintf(3, 7, "3. Add/Remove Tags");
+		rlutil::mvprintf(3, 8, "4. View File List");
+		rlutil::mvprintf(3, 10, "0. Back");
+		rlutil::mvprintf(3, 11, "X. Exit");
 		break;
 	case State_Server:
-		std::cout << "Server Management" << std::endl
-			<< "Options:" << std::endl
-			<< "  1. Toggle Server (Server Status: " << (_bServerIsUp ? "Up" : "Offline") << ")" << std::endl
-			<< "  2. Set Server Port (Current: " << _serverPort << ")" << std::endl
-			<< std::endl << "  0. Back" << std::endl << "  X. Exit" << std::endl;
+		rlutil::mvprintf(1, 4, "Main Menu > Server Management");
+		rlutil::mvprintf(3, 5, "1. Toggle Server (Server Status: %s)", (_bServerIsUp ? "Up" : "Offline"));
+		rlutil::mvprintf(3, 6, "2. Set Server Port (Current: %d)", _serverPort);
+		rlutil::mvprintf(3, 8, "0. Back");
+		rlutil::mvprintf(3, 9, "X. Exit");
 		break;
 	case State_Lua:
-		std::cout << "Lua Scripts" << std::endl
-			<< "Feature under construction!" << std::endl
-			<< std::endl << "  0. Back" << std::endl << "  X. Exit" << std::endl;
+		rlutil::mvprintf(1, 4, "Main Menu > Lua Scripts");
+		rlutil::mvprintf(3, 5, "Feature under construction!");
+		rlutil::mvprintf(3, 7, "0. Back");
+		rlutil::mvprintf(3, 8, "X. Exit");
 		break;
 	case State_Files:
-		std::cout << "Add/Remove Files" << std::endl
-			<< "Options:" << std::endl
-			<< "  1. Add Individual Files" << std::endl
-			<< "  2. Add File Directory" << std::endl
-			<< "  3. Remove Files by ID" << std::endl
-			<< "  4. Remove Files by Tag" << std::endl
-			<< std::endl << "  0. Back" << std::endl << "  X. Exit" << std::endl;
+		rlutil::mvprintf(1, 4, "Main Menu > Database Management > Add/Remove Files");
+		rlutil::mvprintf(3, 5, "1. Add Individual Files");
+		rlutil::mvprintf(3, 6, "2. Add File Directory");
+		rlutil::mvprintf(3, 7, "3. Remove Files by ID");
+		rlutil::mvprintf(3, 8, "4. Remove Files by Tag");
+		rlutil::mvprintf(3, 10, "0. Back");
+		rlutil::mvprintf(3, 11, "X. Exit");
+		break;
+	case State_Collections:
+		rlutil::mvprintf(1, 4, "Main Menu > Database Management > Create/Delete Collection");
+		rlutil::mvprintf(3, 5, "1. Create New Collection");
+		rlutil::mvprintf(3, 6, "2. Delete Collection");
+		rlutil::mvprintf(3, 8, "0. Back");
+		rlutil::mvprintf(3, 9, "X. Exit");
+		break;
 	}
 }
 
@@ -225,7 +290,7 @@ bool Interface::findTag(const char *name, int *retId)
 		predResults()
 		{
 			bSuccess = false;
-			int id = -1;
+			id = -1;
 		}
 	}results;
 
@@ -316,7 +381,7 @@ bool Interface::addDirectory(const char* _path)
 	for (int i = 0; i < entryList.size(); i++)
 	{
 		system("CLS");
-		printf("Entry %d/%d\n+%s\n", i, entryList.size(), entryList[i].c_str());
+		printf("Entry %d/%d\n+%s\n", i+1, entryList.size(), entryList[i].c_str());
 		addEntry(entryList[i].c_str());
 	}
 	system("PAUSE");
@@ -334,16 +399,18 @@ unsigned int Interface::addEntry(const char* _path)
 		FILE *file = std::fopen(_path, "r");
 		if (file)
 		{
-			byte *loadedFile = reinterpret_cast<byte*>(::operator new(size));
-			std::fread(loadedFile, size, 1, file);
+			//image.Load(_path);
+			
+			std::unique_ptr<byte[]> loadedFile(new byte[size]);
+			std::fread(loadedFile.get(), size, 1, file);
 			std::fclose(file);
 
 			// Get the MD5 hash.
 			std::string hashString;
 			{
-				CryptoPP::Weak1::MD5 md5;
+				/*CryptoPP::MD5 md5;
 				byte digest[CryptoPP::MD5::DIGESTSIZE];
-				md5.CalculateDigest(digest, loadedFile, size);
+				md5.CalculateDigest(digest, loadedFile.get(), size);
 
 				CryptoPP::HexEncoder hex;
 				hex.Attach(new CryptoPP::StringSink(hashString));
@@ -354,38 +421,27 @@ unsigned int Interface::addEntry(const char* _path)
 				for (int i = 0; i < hashString.length(); i++)
 				{
 					hashString[i] = tolower(hashString[i]);
-				}
+				}*/
+				md5wrapper *MD5 = new md5wrapper;
+				hashString = MD5->getHashFromFile(_path);
+				delete MD5;
 			}
-			delete loadedFile;
-
-			/*
-			// Determine the file's type based on it's magic number.
-			std::string ext = "";
-			uint16_t *r1 = reinterpret_cast<uint16_t*>(loadedFile);
-			uint32_t *r2 = reinterpret_cast<uint32_t*>(loadedFile);
-			uint64_t *r3 = reinterpret_cast<uint64_t*>(loadedFile);
-
-			if (*r1 == 0x424D) ext = "bmp";
-			else if (*r3 == 0x474946383761 || static_cast<uint64_t>(*loadedFile) == 0x474946383961) ext = "gif";
-			else if (loadedFile[0] == 0xFF && loadedFile[1] == 0xD8 && loadedFile[2] == 0xFF && loadedFile[3] == 0xE0) ext = "jpg";
-			else if (*r3 == 0x89504E470D0A1A0A) ext = "png";*/
+			//delete loadedFile;
 
 			if (!findImage(hashString.c_str()))
 			{
 				if (false /*Check for swf+video magic numbers*/)
 				{
-
+					return Error_UnsupportedFormat;
 				}
 				else
 				{
-					CxImage image;
 					std::string ext = "";
-					if (image.Load(_path))
+					CxImage image;
+					image.Load(_path);
+					if (image.GetType() != CXIMAGE_FORMAT_UNKNOWN)
 					{
-						uint32_t imgType = image.GetType();
-						if (imgType != CXIMAGE_FORMAT_UNKNOWN)
-						{
-							switch (imgType)
+							switch (image.GetType())
 							{
 							case CXIMAGE_FORMAT_BMP: ext = "bmp"; break;
 							case CXIMAGE_FORMAT_GIF: ext = "gif"; break;
@@ -441,31 +497,29 @@ unsigned int Interface::addEntry(const char* _path)
 							sqlString += "\",\"";
 							sqlString += ext;
 							sqlString += "\");";
-							return sqlite3_exec(_database, sqlString.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK;
-						}
-						else // Image is of unknown file format
-						{
-
-						}
+							if (sqlite3_exec(_database, sqlString.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK)
+								return Error_None;
+							else
+								return Error_SQLiteError;
 					}
-					else // Failure to load image (shouldn't happen)
+					else // Unknown/unsupported file type
 					{
-
+						return Error_UnsupportedFormat;
 					}
 				}
 			}
 			else // Hash collision found
 			{
-
+				return Error_HashCollision;
 			}
 		}
 		else // File doesn't exist
 		{
-
+			return Error_FileDoesntExist;
 		}
 	}
-	else
+	else // File deosn't exist
 	{
-
+		return Error_FileDoesntExist;
 	}
 }

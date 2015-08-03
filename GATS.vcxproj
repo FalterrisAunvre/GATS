@@ -39,8 +39,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>D:\Programming Libraries\Graphics\CxImage 7.0.1\CxImage;D:\Programming Libraries\Cryptography\Crypto++ 5.6.2;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Programming Libraries\Graphics\CxImage 7.0.1\CxImage\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\zlib\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\tiff\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\raw\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\png\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\mng\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\libpsd\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jpeg\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jbig\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jasper\Debug;D:\Programming Libraries\Cryptography\Crypto++ 5.6.2\lib\x86 Debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>D:\Programming Libraries\Graphics\CxImage 7.0.1\CxImage;D:\Programming Libraries\Cryptography\hashlib2plus\src;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Programming Libraries\Cryptography\hashlib2plus\lib\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\CxImage\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\zlib\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\tiff\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\raw\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\png\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\mng\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\libpsd\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jpeg\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jbig\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jasper\Debug;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -52,7 +52,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>cryptlib.lib;cximage.lib;jasper.lib;jbig.lib;jpeg.lib;libpsd.lib;mng.lib;png.lib;libdcr.lib;tiff.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>hashlib2plus.lib;cximage.lib;jasper.lib;jbig.lib;jpeg.lib;libpsd.lib;mng.lib;png.lib;libdcr.lib;tiff.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
@@ -74,11 +74,14 @@
   <ItemGroup>
     <ClCompile Include="Interface.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="rlutilextras.cpp" />
     <ClCompile Include="sqlite3.c" />
     <ClCompile Include="tinyfiledialogs.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Interface.h" />
+    <ClInclude Include="rlutil.h" />
+    <ClInclude Include="rlutilextras.h" />
     <ClInclude Include="sqlite3.h" />
     <ClInclude Include="sqlite3ext.h" />
     <ClInclude Include="tinyfiledialogs.h" />

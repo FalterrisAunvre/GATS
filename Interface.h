@@ -6,9 +6,9 @@
 #include <conio.h>
 #include <filesystem>
 #include <functional>
-#include <hex.h>
 #include <iostream>
-#include <md5.h>
+#include <hashlibpp.h>
+#include <memory>
 #include <stack>
 #include <cstdint>
 #include <sstream>
@@ -17,15 +17,20 @@
 #include <vector>
 #include <Windows.h>
 
+#include "rlutil.h"
+#include "rlutilextras.h"
 #include "sqlite3.h"
 #include "tinyfiledialogs.h"
 
-#define GATS_VERSION "v0.0.01 alpha"
+#define GATS_VERSION "GATS v0.0.01 alpha"
 
 class Interface
 {
 private:
+	int _countTags();
 	void _splitString(const std::string str, char delimiter, std::vector<std::string> &list);
+
+	unsigned int _page;
 
 	std::stack<int> _states;
 	std::string _message;
@@ -45,6 +50,7 @@ public:
 		State_Files,
 		State_Collections,
 		State_Tags,
+		State_TagList,
 		STATECOUNT
 	};
 	enum ErrorEnum
