@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 #include <Windows.h>
+#include <thread>
+#include <mutex>
 
 #include "mongoose.h"
 #include "rlutil.h"
@@ -38,6 +40,7 @@ private:
 	std::stack<int> _states;
 	std::string _message;
 
+	std::thread *_serverThread;
 	mg_server *_server;
 	bool _bServerIsUp;
 	unsigned int _serverPort;

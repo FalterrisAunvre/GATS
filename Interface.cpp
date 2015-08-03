@@ -31,6 +31,8 @@ Interface::Interface()
 Interface::~Interface()
 {
 	sqlite3_close(_database);
+	if (_serverThread)
+		delete _serverThread;
 }
 
 int Interface::_countTags()
@@ -308,19 +310,30 @@ bool Interface::isGood()
 bool Interface::startServer()
 {
 	_server = mg_create_server(nullptr, Server::eventHandler);
-
 	if (!_server)
 		return false;
 
 	char buf[8];
 	sprintf(buf, "%u", _serverPort);
-	mg_set_option(_server, "listening_port", buf);
+	const char *msg = mg_set_option(_server, "listening_port", buf);
+	if (msg)
+	{
+		_message = "Unable to start server! Message: ";
+		_message += msg;
+
+		return false;
+	}
+
+	_serverThread = new std::thread(Server::serve, _server);
 
 	return true;
 }
 
 bool Interface::stopServer()
 {
+	_serverThread->detach();
+	delete _serverThread;
+
 	mg_destroy_server(&_server);
 	return _server == nullptr;
 }
