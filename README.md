@@ -23,7 +23,7 @@ GATS stands for Generic All-purpose Tagging Server. It is designed to be a faste
   * .wmf
 
 ## Dependencies
-  * Crypto++ 5.6.2
+  * hashlib2plus
   * CxImage 7.0.1
 
 ## Features
