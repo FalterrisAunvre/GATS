@@ -41,6 +41,7 @@ private:
 	std::string _message;
 
 	std::thread *_serverThread;
+	bool _bServerThreadStop;
 	mg_server *_server;
 	bool _bServerIsUp;
 	unsigned int _serverPort;

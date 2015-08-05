@@ -9,6 +9,7 @@ Interface::Interface()
 	_message = "Welcome to " GATS_VERSION "!";
 
 	_server = nullptr;
+	_bServerThreadStop = false;
 	_bServerIsUp = false;
 	_serverPort = 8008;
 
@@ -31,8 +32,8 @@ Interface::Interface()
 Interface::~Interface()
 {
 	sqlite3_close(_database);
-	if (_serverThread)
-		delete _serverThread;
+	if (_bServerIsUp)
+		stopServer();
 }
 
 int Interface::_countTags()
@@ -144,29 +145,33 @@ void Interface::getInput()
 			}
 			else if (str == "2")
 			{
-				std::string newPort;
-				std::cout << "New server port: ";
-				std::cin >> newPort;
-				bool good = true;
-				for (int i = 0; i < newPort.length(); i++)
+				if (!_bServerIsUp)
 				{
-					if (!isdigit(newPort[i]))
+					std::string newPort;
+					std::cout << "New server port: ";
+					//rlutil::mvreadString()
+					std::cin >> newPort;
+					bool good = true;
+					for (int i = 0; i < newPort.length(); i++)
 					{
-						_message = "'" + newPort + "' is not a valid port number.";
-						good = false;
-						break;
+						if (!isdigit(newPort[i]))
+						{
+							_message = "'" + newPort + "' is not a valid port number.";
+							good = false;
+							break;
+						}
 					}
-				}
-				if (good)
-				{
-					int newPortInt = atoi(newPort.c_str());
-					if (newPortInt < 1 || newPortInt > 65535)
+					if (good)
 					{
-						_message = "'" + newPort + "' is outside the port range (1-65535).";
-					}
-					else
-					{
-						_serverPort = newPortInt;
+						int newPortInt = atoi(newPort.c_str());
+						if (newPortInt < 1 || newPortInt > 65535)
+						{
+							_message = "'" + newPort + "' is outside the port range (1-65535).";
+						}
+						else
+						{
+							_serverPort = newPortInt;
+						}
 					}
 				}
 			}
@@ -273,7 +278,9 @@ void Interface::draw()
 	case State_Server:
 		rlutil::mvprintf(1, 4, "Main Menu > Server Management");
 		rlutil::mvprintf(3, 5, "1. Toggle Server (Server Status: %s)", (_bServerIsUp ? "Up" : "Offline"));
+		if (_bServerIsUp) rlutil::setColor(rlutil::DARKGREY);
 		rlutil::mvprintf(3, 6, "2. Set Server Port (Current: %d)", _serverPort);
+		if (_bServerIsUp) rlutil::setColor(rlutil::GREY);
 		rlutil::mvprintf(3, 8, "0. Back");
 		rlutil::mvprintf(3, 9, "X. Exit");
 		break;
@@ -324,15 +331,18 @@ bool Interface::startServer()
 		return false;
 	}
 
-	_serverThread = new std::thread(Server::serve, _server);
+	Server::serveArgs args{ &_bServerThreadStop, _server };
+	_serverThread = new std::thread(Server::serve, args);
 
 	return true;
 }
 
 bool Interface::stopServer()
 {
-	_serverThread->detach();
-	delete _serverThread;
+	_bServerThreadStop = true;	// Thread will cease when this is set to true
+	_serverThread->join();		// Wait up to 200ms for the thread to finish
+	delete _serverThread;		// Delete the thread
+	_bServerThreadStop = false;
 
 	mg_destroy_server(&_server);
 	return _server == nullptr;
@@ -521,17 +531,14 @@ unsigned int Interface::addEntry(const char* _path)
 							case CXIMAGE_FORMAT_BMP: ext = "bmp"; break;
 							case CXIMAGE_FORMAT_GIF: ext = "gif"; break;
 							case CXIMAGE_FORMAT_JP2: ext = "jp2"; break;
-							case CXIMAGE_FORMAT_JPC: ext = "jpc"; break;
 							case CXIMAGE_FORMAT_JPG: ext = "jpg"; break;
 							case CXIMAGE_FORMAT_MNG: ext = "mng"; break;
 							case CXIMAGE_FORMAT_PCX: ext = "pcx"; break;
-							case CXIMAGE_FORMAT_PGX: ext = "pgx"; break;
 							case CXIMAGE_FORMAT_PNG: ext = "png"; break;
 							case CXIMAGE_FORMAT_PNM: ext = "pnm"; break;
 							case CXIMAGE_FORMAT_PSD: ext = "psd"; break;
 							case CXIMAGE_FORMAT_RAS: ext = "ras"; break;
 							case CXIMAGE_FORMAT_RAW: ext = "raw"; break;
-							case CXIMAGE_FORMAT_SKA: ext = "ska"; break;
 							case CXIMAGE_FORMAT_TGA: ext = "tga"; break;
 							case CXIMAGE_FORMAT_TIF: ext = "tif"; break;
 							case CXIMAGE_FORMAT_WBMP: ext = "wbmp"; break;
