@@ -19,6 +19,12 @@
 #include <thread>
 #include <mutex>
 
+#undef _UNICODE
+#include <wx/wxprec.h>
+#ifndef WX_PRECOMP
+	#include <wx/wx.h>
+#endif
+
 #include "mongoose.h"
 #include "rlutil.h"
 #include "rlutilextras.h"
@@ -45,6 +51,7 @@ private:
 	mg_server *_server;
 	bool _bServerIsUp;
 	unsigned int _serverPort;
+	std::vector<std::string> _serverWhitelist;
 
 	sqlite3 *_database;
 public:
@@ -83,5 +90,6 @@ public:
 	bool addTagCheckIfExists(const char* name);
 	bool findImage(const char* name, int *retId = nullptr);
 	unsigned int addEntry(const char* _path);
+	unsigned int addEntry(const char* _path, std::vector<std::string> &tags);
 	bool addDirectory(const char* _path);
 };

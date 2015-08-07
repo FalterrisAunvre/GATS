@@ -20,13 +20,25 @@ int Server::eventHandler(mg_connection *conn, mg_event event)
 		int length;
 		std::string newUri = conn->uri;
 		newUri = newUri.substr(1); // Get rid of the first slash
-
+		
 		std::vector<std::string> path;
 		splitString(newUri, '/', path);
 		if (path.size() == 0)
 		{
 			mg_send_header(conn, "Content-Type", "text/plain");
-			mg_printf_data(conn, "This is going to be the home screen.");
+			mg_printf_data(conn, "This is going to be the home screen.\nIncoming IP: %s\nLocal IP: %s", conn->remote_ip, conn->local_ip);
+			return MG_TRUE;
+		}
+		else if (path[0] == "admin")
+		{
+			if (!(strcmp(conn->remote_ip, "127.0.0.1") == 0))
+			{
+				mg_send_header(conn, "Content-Type", "text/plain");
+				mg_printf_data(conn, "You are not authorized to view this page.");
+				return MG_TRUE;
+			}
+			mg_send_header(conn, "Content-Type", "text/plain");
+			mg_printf_data(conn, "Admin page here.");
 			return MG_TRUE;
 		}
 		else if (path[0] == "post")
@@ -43,8 +55,13 @@ int Server::eventHandler(mg_connection *conn, mg_event event)
 				mg_printf_data(conn, "The following tags were searched:\n");
 				{
 					std::vector<std::string> tags;
+					std::vector<int> ids;
 					splitString(get, ' ', tags);
-					for (auto i : tags) mg_printf_data(conn, "%s\n", i.c_str());
+					tagIdLookup((sqlite3*)conn->server_param, tags, ids);
+					for (int i = 0; i < tags.size(); i++)
+					{
+						mg_printf_data(conn, "%s\t%d\n", tags[i].c_str(), ids[i]);
+					}
 				}
 			}
 			
@@ -111,4 +128,55 @@ const char *Server::getMimeType(std::string ext)
 	else if (ext == "wbmp") return "image/vnd.wap.wbmp";
 	else if (ext == "wmf") return "application/x-msmetafile";
 	else return "text/plain";
+}
+
+void Server::generateTagSearchQuery(sqlite3 *sql, std::string &queryStr, std::vector<std::string> &tags)
+{
+	std::vector<int> ids;
+	tagIdLookup(sql, tags, ids);
+
+	int count = tags.size();
+	queryStr = "";
+	if (count >= 1)
+	{
+		while (count > 0)
+		{
+			queryStr += "(SELECT DISTINCT id FROM entries WHERE entries.tag = ";
+			queryStr += ids[count - 1];
+			count--;
+			if (count > 0) queryStr += "AND entries.id IN ";
+		}
+		for (int i = 0; i < tags.size(); i++) queryStr += ")";
+	}
+}
+
+// If an id is -1, that means it doesn't exist in the database.
+void Server::tagIdLookup(sqlite3 *sql, std::vector<std::string> &tags, std::vector<int> &ids)
+{
+	struct predResults
+	{
+		int id;
+		predResults()
+		{
+			id = -1;
+		}
+	}results;
+
+	struct predicate
+	{
+		static int func(void *param, int argc, char **argv, char **colname)
+		{
+			predResults *results = static_cast<predResults*>(param);
+			results->id = static_cast<unsigned int>(atoi(argv[0]));
+			return 0;
+		}
+	};
+
+	for (auto i : tags)
+	{
+		std::string str = "SELECT id FROM tags WHERE name = ";
+		str += i;
+		sqlite3_exec(sql, str.c_str(), predicate::func, &results, nullptr);
+		ids.push_back(results.id);
+	}
 }

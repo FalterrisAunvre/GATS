@@ -57,7 +57,7 @@ int Interface::_countTags()
 		}
 	};
 
-	std::string sqlString = "SELECT * FROM tags";
+	std::string sqlString = "SELECT DISTINCT id FROM tags";
 
 	sqlite3_exec(_database, sqlString.c_str(), predicate::func, &results, nullptr);
 	return results.count;
@@ -84,7 +84,7 @@ unsigned int Interface::_nextEntryId()
 		}
 	};
 
-	std::string sqlString = "SELECT DISTINCT * FROM entries ORDER BY id DESC LIMIT 1";
+	std::string sqlString = "SELECT DISTINCT id FROM entries ORDER BY id DESC LIMIT 1";
 
 	sqlite3_exec(_database, sqlString.c_str(), predicate::func, &results, nullptr);
 	return results.id;
@@ -124,7 +124,6 @@ void Interface::getInput()
 			if (str == "1") _states.push(State_Files);
 			else if (str == "2") _states.push(State_Collections);
 			else if (str == "3") _states.push(State_Tags);
-			//else if (str == "4") _states.push(State_TagList);
 			else error = true;
 			break;
 		case State_Server:
@@ -180,6 +179,12 @@ void Interface::getInput()
 		case State_Files:
 			if (str == "1")
 			{
+				int tags = tinyfd_messageBox("Add tags?",
+					"Would you like to add tags after selecting the entries?",
+					"yesno",
+					"question",
+					0);
+
 				const char* const formats[] = { "*.bmp", "*.jpg", "*.jpeg", "*.png", "*.gif" };
 				const char* dialog = tinyfd_openFileDialog("Select File(s)",
 					"",
@@ -244,12 +249,9 @@ void Interface::getInput()
 
 void Interface::draw()
 {
-	//system("CLS");
 	rlutil::cls();
 	if (_message.length() > 0)
 	{
-		//gotoxy(1, rlutil::trows());
-		//std::cout << _message << std::endl;
 		rlutil::mvprintf(1, rlutil::trows(), "%s", _message.c_str());
 		_message = "";
 	}
@@ -316,7 +318,7 @@ bool Interface::isGood()
 
 bool Interface::startServer()
 {
-	_server = mg_create_server(nullptr, Server::eventHandler);
+	_server = mg_create_server(_database, Server::eventHandler);
 	if (!_server)
 		return false;
 
@@ -484,8 +486,6 @@ unsigned int Interface::addEntry(const char* _path)
 		FILE *file = std::fopen(_path, "r");
 		if (file)
 		{
-			//image.Load(_path);
-			
 			std::unique_ptr<byte[]> loadedFile(new byte[size]);
 			std::fread(loadedFile.get(), size, 1, file);
 			std::fclose(file);
@@ -523,6 +523,11 @@ unsigned int Interface::addEntry(const char* _path)
 				{
 					std::string ext = "";
 					CxImage image;
+
+					/*int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, _path, strlen(_path), NULL, 0);
+					std::wstring _wpath(sizeNeeded, 0);
+					MultiByteToWideChar(CP_UTF8, 0, _path, strlen(_path), &_wpath[0], sizeNeeded);
+					*/
 					image.Load(_path);
 					if (image.GetType() != CXIMAGE_FORMAT_UNKNOWN)
 					{
@@ -550,7 +555,7 @@ unsigned int Interface::addEntry(const char* _path)
 							std::string imgPath = "images/" + basePath + "." + ext;
 							// Creates the necessary directories
 							{
-								char thispath[512];
+								TCHAR thispath[512];
 								GetModuleFileName(NULL, thispath, 512);
 								PathRemoveFileSpec(thispath);
 								sys::current_path(sys::path(thispath));
@@ -604,4 +609,9 @@ unsigned int Interface::addEntry(const char* _path)
 	{
 		return Error_FileDoesntExist;
 	}
+}
+
+unsigned int Interface::addEntry(const char* _path, std::vector<std::string> &_tags)
+{
+	return 0;
 }
