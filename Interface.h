@@ -19,12 +19,6 @@
 #include <thread>
 #include <mutex>
 
-#undef _UNICODE
-#include <wx/wxprec.h>
-#ifndef WX_PRECOMP
-	#include <wx/wx.h>
-#endif
-
 #include "mongoose.h"
 #include "rlutil.h"
 #include "rlutilextras.h"

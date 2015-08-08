@@ -39,8 +39,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>D:\Programming Libraries\Toolkits &amp; GUIs\wxWidgets 3.0.2\include\msvc;D:\Programming Libraries\Toolkits &amp; GUIs\wxWidgets 3.0.2\include;D:\Programming Libraries\Graphics\CxImage 7.0.1\CxImage;D:\Programming Libraries\Cryptography\hashlib2plus\src;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Programming Libraries\Toolkits &amp; GUIs\wxWidgets 3.0.2\lib\vc_lib;D:\Programming Libraries\Cryptography\hashlib2plus\lib\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\CxImage\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\zlib\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\tiff\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\raw\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\png\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\mng\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\libpsd\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jpeg\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jbig\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jasper\Debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>D:\Programming Libraries\Toolkits &amp; GUIs\FLTK 1.3.3;D:\Programming Libraries\Graphics\CxImage 7.0.1\CxImage;D:\Programming Libraries\Cryptography\hashlib2plus\src;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Programming Libraries\Toolkits &amp; GUIs\FLTK 1.3.3\lib;D:\Programming Libraries\Cryptography\hashlib2plus\lib\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\CxImage\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\zlib\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\tiff\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\raw\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\png\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\mng\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\libpsd\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jpeg\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jbig\Debug;D:\Programming Libraries\Graphics\CxImage 7.0.1\jasper\Debug;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -52,9 +52,10 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>wxbase30d.lib;wxmsw30d_core.lib;hashlib2plus.lib;cximage.lib;jasper.lib;jbig.lib;jpeg.lib;libpsd.lib;mng.lib;png.lib;libdcr.lib;tiff.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>fltkd.lib;hashlib2plus.lib;cximage.lib;jasper.lib;jbig.lib;jpeg.lib;libpsd.lib;mng.lib;png.lib;libdcr.lib;tiff.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
+      <SubSystem>Windows</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

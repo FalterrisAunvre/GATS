@@ -493,20 +493,6 @@ unsigned int Interface::addEntry(const char* _path)
 			// Get the MD5 hash.
 			std::string hashString;
 			{
-				/*CryptoPP::MD5 md5;
-				byte digest[CryptoPP::MD5::DIGESTSIZE];
-				md5.CalculateDigest(digest, loadedFile.get(), size);
-
-				CryptoPP::HexEncoder hex;
-				hex.Attach(new CryptoPP::StringSink(hashString));
-				hex.Put(digest, sizeof(digest));
-				hex.MessageEnd();
-				//delete sink;
-
-				for (int i = 0; i < hashString.length(); i++)
-				{
-					hashString[i] = tolower(hashString[i]);
-				}*/
 				md5wrapper *MD5 = new md5wrapper;
 				hashString = MD5->getHashFromFile(_path);
 				delete MD5;
@@ -523,11 +509,6 @@ unsigned int Interface::addEntry(const char* _path)
 				{
 					std::string ext = "";
 					CxImage image;
-
-					/*int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, _path, strlen(_path), NULL, 0);
-					std::wstring _wpath(sizeNeeded, 0);
-					MultiByteToWideChar(CP_UTF8, 0, _path, strlen(_path), &_wpath[0], sizeNeeded);
-					*/
 					image.Load(_path);
 					if (image.GetType() != CXIMAGE_FORMAT_UNKNOWN)
 					{
