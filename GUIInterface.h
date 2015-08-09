@@ -13,6 +13,8 @@
 #include <FL/Fl_Text_Buffer.H>
 #include <FL/Fl_Text_Editor.H>
 #include <FL/Fl_Input_Choice.H>
+#include <FL/Fl_Input.H>
+#include <FL/Fl_Select_Browser.H>
 
 #include <Shlwapi.h>
 #include <ximage.h>
@@ -27,8 +29,8 @@
 #include "Server.h"
 #include "sqlite3.h"
 #include "tinyfiledialogs.h"
-
-#define GATS_VERSION "GATS v0.0.01 alpha"
+// 0f05947f75e5d442420790fd15380dd8
+#define GATS_VERSION "GATS v0.1.02 alpha"
 
 class GUIInterface
 {
@@ -53,7 +55,14 @@ private:
 	Fl_Int_Input *_portInput;
 
 	// Entries tab
-	Fl_Button *_openFiles, *_openDirectory;
+	Fl_Button *_openFiles, *_openDirectory, *_updateFilter, *_openEntry, *_modifyTags;
+	Fl_Input *_filter;
+	Fl_Select_Browser *_filterResults;
+	
+	// SQL tab
+	Fl_Input *_sqlQuery;
+	Fl_Text_Display *_sqlQueryResults;
+	Fl_Text_Buffer *_sqlQueryResultsBuffer;
 
 	sqlite3 *_database;
 	std::mutex _databaseMutex;
@@ -74,4 +83,7 @@ public:
 	static void UpdateWhitelist(Fl_Widget* widget, void* data);
 	static void AddFiles(Fl_Widget* widget, void* data);
 	static void AddDirectory(Fl_Widget* widget, void* data);
+	static void EntriesFilter(Fl_Widget* widget, void* data);
+	static void AnyQuery(Fl_Widget* widget, void* data);
+	static void UpdateEntriesList(Fl_Widget* widget, void* data);
 };

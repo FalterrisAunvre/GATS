@@ -6,7 +6,7 @@ GUIInterface::GUIInterface()
 	{
 		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS entries(id INTEGER, tag INTEGER);", nullptr, NULL, NULL);
 		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS tags(id INTEGER PRIMARY KEY, name TEXT);", nullptr, NULL, NULL);
-		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS images(id INTEGER PRIMARY KEY, filename TEXT, extension TEXT);", nullptr, NULL, NULL);
+		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS files(id INTEGER PRIMARY KEY, filename TEXT, extension TEXT);", nullptr, NULL, NULL);
 		sqlite3_exec(_database, "CREATE TABLE IF NOT EXISTS collections(id INTEGER, name TEXT, entry INTEGER);", nullptr, NULL, NULL);
 	}
 	else
@@ -16,6 +16,8 @@ GUIInterface::GUIInterface()
 		system("PAUSE");
 		exit(-1);
 	}
+
+	//_filterResultsValues.second = nullptr;
 
 	_server = nullptr;
 	_serverThread = nullptr;
@@ -55,6 +57,17 @@ GUIInterface::GUIInterface()
 					_openFiles->callback(AddFiles, this);
 				_openDirectory = new Fl_Button(20, 80, 280, 30, "Add Directory");
 					_openDirectory->callback(AddDirectory, this);
+				_filter = new Fl_Input(20, 120, 200, 30, "Filter");
+					_filter->align(FL_ALIGN_RIGHT);
+					_filter->when(FL_WHEN_ENTER_KEY_ALWAYS);
+					_filter->callback(EntriesFilter, this);
+				_filterResults = new Fl_Select_Browser(20, 160, 110, 300);
+					_filterResults->callback(UpdateEntriesList, this);
+				//_filterResults->when(FL_WHEN_)
+				_openEntry = new Fl_Button(140, 160, 160, 30, "Open Entry");
+					_openEntry->deactivate();
+				_modifyTags = new Fl_Button(140, 200, 160, 30, "Modify Tags");
+					_modifyTags->deactivate();
 			}
 			_tabEntries->end();
 
@@ -66,7 +79,12 @@ GUIInterface::GUIInterface()
 
 			_tabSql = new Fl_Group(20, 30, 600, 430, "SQL");
 			{
-
+				_sqlQueryResultsBuffer = new Fl_Text_Buffer;
+				_sqlQueryResults = new Fl_Text_Display(20, 80, 280, 380);
+					_sqlQueryResults->buffer(_sqlQueryResultsBuffer);
+				_sqlQuery = new Fl_Input(20, 40, 280, 30);
+					_sqlQuery->callback(AnyQuery, this);
+					_sqlQuery->when(FL_WHEN_ENTER_KEY_ALWAYS);
 			}
 			_tabSql->end();
 		}
@@ -113,7 +131,7 @@ int GUIInterface::findFileInDatabase(const char *filename)
 	};
 
 	int id = -1;
-	std::string sql = "SELECT DISTINCT id FROM images WHERE filename = '";
+	std::string sql = "SELECT DISTINCT id FROM files WHERE filename = '";
 	sql += filename;
 	sql += "'";
 
@@ -129,9 +147,11 @@ bool GUIInterface::isFileInDatabase(const char *filename)
 void GUIInterface::queryDatabase(std::string query, int callback(void* param, int argc, char *argv[], char *colname[]), void *userData = nullptr)
 {
 	std::lock_guard<std::mutex> lockGuard(_databaseMutex);
+	printf("%s\n", query.c_str());
 	sqlite3_exec(_database, query.c_str(), callback, userData, nullptr);
 }
 
+// Returns -1 if there are no entries.
 int GUIInterface::getTopImageId()
 {
 	auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
@@ -140,8 +160,8 @@ int GUIInterface::getTopImageId()
 		return 0;
 	};
 
-	int id = 0;
-	queryDatabase("SELECT DISTINCT id FROM images ORDER BY id DESC LIMIT 1", callback, &id);
+	int id = -1;
+	queryDatabase("SELECT DISTINCT id FROM files ORDER BY id DESC LIMIT 1", callback, &id);
 	return id;
 }
 
@@ -175,7 +195,7 @@ void GUIInterface::addFile(const char *_path)
 				if (false /*Check for swf+video magic numbers*/)
 				{
 					std::stringstream ss;
-					ss << "File '" << _path << "' is of an unsupported format.";
+					ss << "File '" << _path << "' is of an unsupported format.\n";
 					logMessage(ss.str().c_str());
 				}
 				else
@@ -234,10 +254,12 @@ void GUIInterface::addFile(const char *_path)
 						image.Save(thumbPath.c_str(), CXIMAGE_FORMAT_JPG);
 
 						std::stringstream sqlString;
-						sqlString << "INSERT INTO images(filename, extension) VALUES('";
+						sqlString << "INSERT INTO files(filename, extension) VALUES('";
 						sqlString << hashString << "','" << ext << "');";
 
 						int newId = getTopImageId();
+						if (newId == -1) newId = 1;
+						else newId++;
 						std::stringstream sqlString2;
 						sqlString2 << "INSERT INTO entries(id, tag) VALUES(";
 						sqlString2 << newId << ", -1);";
@@ -251,6 +273,7 @@ void GUIInterface::addFile(const char *_path)
 								std::stringstream ss;
 								ss << "Added file '" << _path << "' with entry ID " << newId << ".\n";
 								logMessage(ss.str().c_str());
+								printf("%s\n", hashString.c_str());
 							}
 							else
 							{
@@ -320,7 +343,7 @@ void GUIInterface::ToggleServer(Fl_Widget *widget, void *data)
 			if (msg)
 			{
 				std::stringstream ss;
-				ss << "Unable to set port to " << inter->_serverPort << "!\n";
+				ss << "Unable to set port to " << inter->_serverPort << ".\n";
 				inter->logMessage(ss.str().c_str());
 				inter->_bServerIsUp = false;
 			}
@@ -443,4 +466,149 @@ void GUIInterface::AddFiles(Fl_Widget* widget, void* data)
 void GUIInterface::AddDirectory(Fl_Widget* widget, void* data)
 {
 
+}
+
+void GUIInterface::EntriesFilter(Fl_Widget* widget, void* data)
+{
+	GUIInterface *inter = static_cast<GUIInterface*>(data);
+	Fl_Input *input = static_cast<Fl_Input*>(widget);
+
+	std::string text = input->value();
+
+	unsigned int count = 0U;
+	std::stringstream sqlQuery;
+
+	std::vector<std::string> parameters;
+	std::stringstream ss(text);
+	std::string item;
+	while (std::getline(ss, item, ' ')) {
+		parameters.push_back(item);
+	}
+
+	bool bDescResults = true;
+	for (auto i : parameters)
+	{
+		if (count > 0U) sqlQuery << " AND id IN (SELECT id FROM entries WHERE ";
+		else sqlQuery << "SELECT DISTINCT id FROM entries WHERE ";
+
+		std::string str = i;
+		if (str.find("id:") == 0)
+		{
+			str = str.substr(3);
+
+			if (str.find(">=") == 0)
+			{
+				sqlQuery << "id >= " << str.substr(2);
+			}
+			else if (str.find(">") == 0)
+			{
+				sqlQuery << "id > " << str.substr(1);
+			}
+			else if (str.find("<=") == 0)
+			{
+				sqlQuery << "id <= " << str.substr(2);
+			}
+			else if (str.find("<") == 0)
+			{
+				sqlQuery << "id < " << str.substr(1);
+			}
+			else
+			{
+				sqlQuery << "id = " << str;
+			}
+		}
+		else if (str.find("order:") == 0)
+		{
+			str = str.substr(6);
+
+			if (str.find("id_desc"))
+			{
+				bDescResults = true;
+			}
+			else if (str.find("id"))
+			{
+				bDescResults = false;
+			}
+		}
+		else if (str.find("md5:") == 0)
+		{
+			str = str.substr(4);
+
+			sqlQuery << "id IN (SELECT id FROM files WHERE filename = '" << str << "')";
+		}
+		else
+		{
+			sqlQuery << "id IN (SELECT id FROM tags WHERE name = '" << str << "')";
+		}
+		count++;
+	}
+
+	inter->_filterResults->clear();
+	unsigned int resultCount = 0U;
+	if (count > 0U)
+	{
+		for (unsigned int i = 0; i < count - 1; i++)
+		{
+			sqlQuery << ")";
+		}
+
+		auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+			std::vector<int> *ret = static_cast<std::vector<int>*>(param);
+			for (int i = 0; i < argc; i++)
+				ret->push_back(atoi(argv[i]));
+			return 0;
+		};
+
+		// Populates the results list,
+		std::vector<int> results;
+		inter->queryDatabase(sqlQuery.str(), callback, &results);
+		resultCount = results.size();
+		for (unsigned int i = 0U; i < results.size(); i++)
+		{
+			inter->_filterResults->add(std::to_string(results[i]).c_str());
+		}
+	}
+
+	std::stringstream msg;
+	msg << resultCount << " results returned from query '" << text << "'.\n";
+	inter->logMessage(msg.str().c_str());
+}
+
+void GUIInterface::AnyQuery(Fl_Widget* widget, void* data)
+{
+	GUIInterface *inter = static_cast<GUIInterface*>(data);
+	Fl_Input *input = static_cast<Fl_Input*>(widget);
+
+	inter->_sqlQueryResultsBuffer->text("");
+	auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+		Fl_Text_Buffer *inter = static_cast<Fl_Text_Buffer*>(param);
+		for (int i = 0; i < argc; i++)
+		{
+			std::stringstream ss;
+			ss << "Col: '" << colname[i] << "', Value: " << argv[i] << "\n";
+			inter->append(ss.str().c_str());
+		}
+		return 0;
+	};
+
+	std::string text = input->value();
+	inter->queryDatabase(text.c_str(), callback, inter->_sqlQueryResultsBuffer);
+}
+
+void GUIInterface::UpdateEntriesList(Fl_Widget* widget, void* data)
+{
+	GUIInterface *inter = static_cast<GUIInterface*>(data);
+	int line = inter->_filterResults->value();
+	if (line == 0)
+	{
+		inter->_openEntry->deactivate();
+		inter->_modifyTags->deactivate();
+	}
+	else
+	{
+		inter->_openEntry->activate();
+		inter->_modifyTags->activate();
+
+		int entryID = atoi(inter->_filterResults->text(line));
+	}
 }
