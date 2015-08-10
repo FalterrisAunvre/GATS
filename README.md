@@ -25,6 +25,7 @@ GATS stands for Generic All-purpose Tagging Server. It is designed to be a faste
 ## Dependencies
   * hashlib2plus
   * CxImage 7.0.1
+  * FLTK 1.3.3
 
 ## Features
   * Simple, responsive console interface
