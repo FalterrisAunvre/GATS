@@ -66,6 +66,7 @@ GUIInterface::GUIInterface()
 				//_filterResults->when(FL_WHEN_)
 				_openEntry = new Fl_Button(140, 160, 160, 30, "Open Entry");
 					_openEntry->deactivate();
+					_openEntry->callback(OpenFileWithDefaultProgram, this);
 				_modifyTags = new Fl_Button(140, 200, 160, 30, "Modify Tags");
 					_modifyTags->deactivate();
 			}
@@ -234,8 +235,11 @@ void GUIInterface::addFile(const char *_path)
 							PathRemoveFileSpec(thispath);
 							sys::current_path(sys::path(thispath));
 							sys::path tpath = "preview/" + hashString.substr(0, 2) + "/" + hashString.substr(2, 2) + "/", ipath = "images/" + hashString.substr(0, 2) + "/" + hashString.substr(2, 2) + "/";
-							sys::create_directories(tpath);
-							sys::create_directories(ipath);
+							char absolute[_MAX_PATH];
+							_fullpath(absolute, tpath.string().c_str(), _MAX_PATH);
+							sys::create_directories(sys::path(absolute));
+							_fullpath(absolute, ipath.string().c_str(), _MAX_PATH);
+							sys::create_directories(sys::path(ipath));
 						}
 						const float FULLSIZE = 150.f;
 						unsigned int width = image.GetWidth(), height = image.GetHeight();
@@ -246,11 +250,14 @@ void GUIInterface::addFile(const char *_path)
 						}
 						else
 						{
-							width = ((float)(width / height)) * FULLSIZE;
+							width = ((float)(width / (float)height)) * FULLSIZE;
 							height = FULLSIZE;
 						}
-						image.Save(imgPath.c_str(), image.GetType());
+						char absolute[_MAX_PATH];
+						_fullpath(absolute, imgPath.c_str(), _MAX_PATH);
+						image.Save(absolute, image.GetType());
 						image.Resample(width, height, 0);
+						_fullpath(absolute, thumbPath.c_str(), _MAX_PATH);
 						image.Save(thumbPath.c_str(), CXIMAGE_FORMAT_JPG);
 
 						std::stringstream sqlString;
@@ -327,7 +334,7 @@ void GUIInterface::ToggleServer(Fl_Widget *widget, void *data)
 	inter->_serverButton->deactivate();
 	if (!inter->_bServerIsUp)
 	{
-		inter->_server = mg_create_server(inter->_database, Server::eventHandler);
+		inter->_server = mg_create_server(inter, eventHandler);
 		if (!inter->_server)
 		{
 			std::stringstream ss;
@@ -348,9 +355,9 @@ void GUIInterface::ToggleServer(Fl_Widget *widget, void *data)
 				inter->_bServerIsUp = false;
 			}
 
-			Server::serveArgs args{ &inter->_bServerThreadStop, inter->_server };
-			inter->_serverThread = new std::thread(Server::serve, args);
-
+			//serveArgs args{ &inter->_bServerThreadStop, inter->_server, inter, inter->_database };
+			inter->_serverThread = new std::thread(serve, inter);
+			
 			std::stringstream ss;
 			ss << "Server started on port " << inter->_serverPort << ".\n";
 			inter->logMessage(ss.str().c_str());
@@ -468,13 +475,8 @@ void GUIInterface::AddDirectory(Fl_Widget* widget, void* data)
 
 }
 
-void GUIInterface::EntriesFilter(Fl_Widget* widget, void* data)
+void GUIInterface::queryForTags(std::string text, std::vector<int> &results)
 {
-	GUIInterface *inter = static_cast<GUIInterface*>(data);
-	Fl_Input *input = static_cast<Fl_Input*>(widget);
-
-	std::string text = input->value();
-
 	unsigned int count = 0U;
 	std::stringstream sqlQuery;
 
@@ -488,15 +490,19 @@ void GUIInterface::EntriesFilter(Fl_Widget* widget, void* data)
 	bool bDescResults = true;
 	for (auto i : parameters)
 	{
-		if (count > 0U) sqlQuery << " AND id IN (SELECT id FROM entries WHERE ";
-		else sqlQuery << "SELECT DISTINCT id FROM entries WHERE ";
-
 		std::string str = i;
 		if (str.find("id:") == 0)
 		{
 			str = str.substr(3);
 
-			if (str.find(">=") == 0)
+			if (count > 0U) sqlQuery << " AND id IN (SELECT id FROM entries WHERE ";
+			else sqlQuery << "SELECT DISTINCT id FROM entries WHERE ";
+
+			if (str.find("all") == 0)
+			{
+				sqlQuery << "id >= 0";
+			}
+			else if (str.find(">=") == 0)
 			{
 				sqlQuery << "id >= " << str.substr(2);
 			}
@@ -516,6 +522,7 @@ void GUIInterface::EntriesFilter(Fl_Widget* widget, void* data)
 			{
 				sqlQuery << "id = " << str;
 			}
+			count++;
 		}
 		else if (str.find("order:") == 0)
 		{
@@ -523,24 +530,193 @@ void GUIInterface::EntriesFilter(Fl_Widget* widget, void* data)
 
 			if (str.find("id_desc"))
 			{
-				bDescResults = true;
+				bDescResults = false;
 			}
 			else if (str.find("id"))
 			{
-				bDescResults = false;
+				bDescResults = true;
 			}
 		}
 		else if (str.find("md5:") == 0)
 		{
 			str = str.substr(4);
 
+			if (count > 0U) sqlQuery << " AND id IN (SELECT id FROM entries WHERE ";
+			else sqlQuery << "SELECT DISTINCT id FROM entries WHERE ";
+
 			sqlQuery << "id IN (SELECT id FROM files WHERE filename = '" << str << "')";
+			count++;
 		}
 		else
 		{
+			if (count > 0U) sqlQuery << " AND id IN (SELECT id FROM entries WHERE ";
+			else sqlQuery << "SELECT DISTINCT id FROM entries WHERE ";
+
 			sqlQuery << "id IN (SELECT id FROM tags WHERE name = '" << str << "')";
+			count++;
 		}
-		count++;
+	}
+
+	if (count > 0U)
+	{
+		for (unsigned int i = 0; i < count - 1; i++)
+		{
+			sqlQuery << ")";
+		}
+		if (bDescResults) sqlQuery << " ORDER BY id DESC";
+		else sqlQuery << " ORDER BY id ASC";
+
+		auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+			std::vector<int> *ret = static_cast<std::vector<int>*>(param);
+			for (int i = 0; i < argc; i++)
+				ret->push_back(atoi(argv[i]));
+			return 0;
+		};
+
+		// Populates the results list,
+		//std::vector<int> results;
+		printf("%s\n", sqlQuery.str().c_str());
+		char *msg = nullptr;
+		sqlite3_exec(_database, sqlQuery.str().c_str(), callback, &results, &msg);
+		printf("%s\n", msg);
+		delete[] msg;
+	}
+	else
+	{
+		sqlQuery << "SELECT id FROM entries ORDER BY id DESC";
+
+		auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+			std::vector<int> *ret = static_cast<std::vector<int>*>(param);
+			for (int i = 0; i < argc; i++)
+				ret->push_back(atoi(argv[i]));
+			return 0;
+		};
+
+		// Populates the results list,
+		//std::vector<int> _results;
+		sqlite3_exec(_database, sqlQuery.str().c_str(), callback, &results, nullptr);
+	}
+}
+
+void GUIInterface::queryForEntryInfo(std::vector<int> &ids, std::vector<std::string> &filename, std::vector<std::string> &exts)
+{
+	struct res {
+		std::vector<std::string> filename, ext;
+	}results;
+
+	auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+		res *r = static_cast<res*>(param);
+		for (int i = 0; i < argc; i++)
+		{
+			if (strcmp("filename", colname[i]) == 0)
+				r->filename.push_back(argv[i]);
+			else if (strcmp("extension", colname[i]) == 0)
+				r->ext.push_back(argv[i]);
+		}
+		return 0;
+	};
+
+	std::stringstream sql;
+	sql << "SELECT filename,extension FROM files WHERE id IN (";
+	for (int i = 0; i < ids.size(); i++)
+	{
+		sql << std::to_string(ids[i]);
+		if (i != ids.size() - 1)
+			sql << ", ";
+		else
+			sql << ")";
+	}
+
+	sqlite3_exec(_database, sql.str().c_str(), callback, &results, nullptr);
+	filename = results.filename;
+	exts = results.ext;
+}
+
+void GUIInterface::EntriesFilter(Fl_Widget* widget, void* data)
+{
+	GUIInterface *inter = static_cast<GUIInterface*>(data);
+	Fl_Input *input = static_cast<Fl_Input*>(widget);
+
+	std::string text = input->value();
+
+	/*unsigned int count = 0U;
+	std::stringstream sqlQuery;
+
+	std::vector<std::string> parameters;
+	std::stringstream ss(text);
+	std::string item;
+	while (std::getline(ss, item, ' ')) {
+		parameters.push_back(item);
+	}
+
+	bool bDescResults = true;
+	for (auto i : parameters)
+	{
+		std::string str = i;
+		if (str.find("id:") == 0)
+		{
+			str = str.substr(3);
+
+			if (count > 0U) sqlQuery << " AND id IN (SELECT id FROM entries WHERE ";
+			else sqlQuery << "SELECT DISTINCT id FROM entries WHERE ";
+
+			if (str.find("all") == 0)
+			{
+				sqlQuery << "id >= 0";
+			}
+			else if (str.find(">=") == 0)
+			{
+				sqlQuery << "id >= " << str.substr(2);
+			}
+			else if (str.find(">") == 0)
+			{
+				sqlQuery << "id > " << str.substr(1);
+			}
+			else if (str.find("<=") == 0)
+			{
+				sqlQuery << "id <= " << str.substr(2);
+			}
+			else if (str.find("<") == 0)
+			{
+				sqlQuery << "id < " << str.substr(1);
+			}
+			else
+			{
+				sqlQuery << "id = " << str;
+			}
+			count++;
+		}
+		else if (str.find("order:") == 0)
+		{
+			str = str.substr(6);
+
+			if (str.find("id_desc"))
+			{
+				bDescResults = false;
+			}
+			else if (str.find("id"))
+			{
+				bDescResults = true;
+			}
+		}
+		else if (str.find("md5:") == 0)
+		{
+			str = str.substr(4);
+
+			if (count > 0U) sqlQuery << " AND id IN (SELECT id FROM entries WHERE ";
+			else sqlQuery << "SELECT DISTINCT id FROM entries WHERE ";
+
+			sqlQuery << "id IN (SELECT id FROM files WHERE filename = '" << str << "')";
+			count++;
+		}
+		else
+		{
+			if (count > 0U) sqlQuery << " AND id IN (SELECT id FROM entries WHERE ";
+			else sqlQuery << "SELECT DISTINCT id FROM entries WHERE ";
+
+			sqlQuery << "id IN (SELECT id FROM tags WHERE name = '" << str << "')";
+			count++;
+		}
 	}
 
 	inter->_filterResults->clear();
@@ -551,6 +727,8 @@ void GUIInterface::EntriesFilter(Fl_Widget* widget, void* data)
 		{
 			sqlQuery << ")";
 		}
+		if (bDescResults) sqlQuery << " ORDER BY id DESC";
+		else sqlQuery << " ORDER BY id ASC";
 
 		auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
 			std::vector<int> *ret = static_cast<std::vector<int>*>(param);
@@ -568,9 +746,39 @@ void GUIInterface::EntriesFilter(Fl_Widget* widget, void* data)
 			inter->_filterResults->add(std::to_string(results[i]).c_str());
 		}
 	}
+	else
+	{
+		sqlQuery << "SELECT id FROM entries ORDER BY id DESC";
+
+		auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+			std::vector<int> *ret = static_cast<std::vector<int>*>(param);
+			for (int i = 0; i < argc; i++)
+				ret->push_back(atoi(argv[i]));
+			return 0;
+		};
+
+		// Populates the results list,
+		std::vector<int> results;
+		inter->queryDatabase(sqlQuery.str(), callback, &results);
+		resultCount = results.size();
+		for (unsigned int i = 0U; i < results.size(); i++)
+		{
+			inter->_filterResults->add(std::to_string(results[i]).c_str());
+		}
+	}
+	*/
+
+	std::vector<int> results;
+	inter->queryForTags(text, results);
+	
+	inter->_filterResults->clear();
+	for (unsigned int i = 0U; i < results.size(); i++)
+	{
+		inter->_filterResults->add(std::to_string(results[i]).c_str());
+	}
 
 	std::stringstream msg;
-	msg << resultCount << " results returned from query '" << text << "'.\n";
+	msg << results.size() << " results returned from query '" << text << "'.\n";
 	inter->logMessage(msg.str().c_str());
 }
 
@@ -611,4 +819,254 @@ void GUIInterface::UpdateEntriesList(Fl_Widget* widget, void* data)
 
 		int entryID = atoi(inter->_filterResults->text(line));
 	}
+}
+
+void GUIInterface::OpenFileWithDefaultProgram(Fl_Widget* widget, void* data)
+{
+	GUIInterface *inter = static_cast<GUIInterface*>(data);
+	//std::string *str = static_cast<std::string*>(data);
+	std::pair<std::string, std::string> params;
+
+	auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+		std::pair<std::string, std::string> *params = static_cast<std::pair<std::string, std::string>*>(param);
+		for (int i = 0; i < argc; i++)
+		{
+			if (strcmp(colname[i], "filename") == 0) params->first = argv[i];
+			else if (strcmp(colname[i], "extension") == 0) params->second = argv[i];
+		}
+		return 0;
+	};
+
+	std::stringstream ss;
+	ss << "SELECT filename, extension FROM files WHERE id = " << atoi(inter->_filterResults->text(inter->_filterResults->value()));
+
+	inter->queryDatabase(ss.str(), callback, &params);
+
+	// A double-check to make sure that it got both of the parameters were found.
+	if (params.first.size() > 0 && params.second.size() > 0)
+	{
+		std::stringstream ss2;
+		ss2 << "images/" << params.first.substr(0, 2) << "/" << params.first.substr(2, 2) << "/" << params.first << "." << params.second;
+		char absolute[_MAX_PATH];
+		if (_fullpath(absolute, ss2.str().c_str(), _MAX_PATH) != nullptr)
+		{
+			printf("%s\n", absolute);
+			/*HINSTANCE res =*/ ShellExecute(0, "open", absolute, 0, 0, SW_SHOW);
+		}
+	}
+}
+
+void *GUIInterface::serve(GUIInterface *inter)
+{
+	//serveArgs *args = (serveArgs*)argsl;
+
+	while (!(inter->_bServerThreadStop)) mg_poll_server(inter->_server, 200);
+	return nullptr;
+}
+
+int GUIInterface::eventHandler(mg_connection *conn, mg_event event)
+{
+	std::vector<std::string> path;
+	switch (event)
+	{
+	case MG_POLL: return MG_FALSE;
+	case MG_AUTH: return MG_TRUE;
+	case MG_REQUEST:
+		byte buffer[1024];
+		int length;
+		std::string newUri = conn->uri;
+		newUri = newUri.substr(1); // Get rid of the first slash
+
+		std::vector<std::string> path;
+		splitString(newUri, '/', path);
+		if (path.size() == 0)
+		{
+			mg_send_header(conn, "Content-Type", "text/plain");
+			std::stringstream html;
+			html << "This is going to be the home screen.\nIncoming IP: " << conn->remote_ip << "\nLocal IP: " << conn->local_ip;
+			mg_printf_data(conn, html.str().c_str());
+			return MG_TRUE;
+		}
+		else if (path[0] == "admin")
+		{
+			if (!(strcmp(conn->remote_ip, "127.0.0.1") == 0))
+			{
+				mg_send_header(conn, "Content-Type", "text/plain");
+				mg_printf_data(conn, "You are not authorized to view this page.");
+				return MG_TRUE;
+			}
+			mg_send_header(conn, "Content-Type", "text/plain");
+			mg_printf_data(conn, "Admin page here.");
+			return MG_TRUE;
+		}
+		else if (path[0] == "post")
+		{
+			mg_send_header(conn, "Content-Type", "text/html");
+			std::string html;
+			generateHtml(conn, (GUIInterface*)(conn->server_param), "post", html);
+
+			mg_printf_data(conn, html.c_str());
+			return MG_TRUE;
+		}
+		else if (path[0] == "images" || path[0] == "preview" || path[0] == "movies")
+		{
+			FILE *f = fopen(newUri.c_str(), "rb");
+			if (f)
+			{
+				std::string ext;
+				getExtension(newUri, ext);
+				std::string mime = getMimeType(ext.c_str());
+				mg_send_header(conn, "Content-Type", mime.c_str());
+				length = fread(buffer, 1, sizeof(buffer), f);
+				while (length > 0)
+				{
+					mg_send_data(conn, buffer, length);
+					length = fread(buffer, 1, sizeof(buffer), f);
+				}
+				fclose(f);
+				return MG_TRUE;
+			}
+			else
+			{
+				mg_send_header(conn, "Content-Type", "text/plain");
+				mg_printf_data(conn, "Error: couldn't find file [%s].\n", newUri.c_str());
+				return MG_TRUE;
+			}
+		}
+	}
+}
+
+void GUIInterface::splitString(const std::string str, char delimiter, std::vector<std::string> &list)
+{
+	std::stringstream ss(str);
+	std::string item;
+	while (std::getline(ss, item, delimiter)) {
+		list.push_back(item);
+	}
+}
+
+void GUIInterface::getExtension(const std::string str, std::string &ext)
+{
+	ext = str.substr(str.find_last_of('.'));
+	ext = ext.substr(1);
+}
+
+const char *GUIInterface::getMimeType(std::string ext)
+{
+	if (ext == "bmp") return "image/bmp";
+	else if (ext == "gif") return "image/gif";
+	else if (ext == "jp2") return "image/jp2";
+	else if (ext == "jpg") return "image/jpeg";
+	else if (ext == "mng") return "video/x-mng";
+	else if (ext == "pcx") return "image/x-pcx";
+	else if (ext == "png") return "image/png";
+	else if (ext == "pnm") return "image/x-portable-bitmap";
+	else if (ext == "psd") return "image/vnd.adobe.photoshop";
+	else if (ext == "ras") return "image/x-cmu-raster";
+	else if (ext == "raw") return "image/raw";
+	else if (ext == "tga") return "image/x-targa";
+	else if (ext == "tif") return "image/tiff";
+	else if (ext == "wbmp") return "image/vnd.wap.wbmp";
+	else if (ext == "wmf") return "application/x-msmetafile";
+	else return "text/plain";
+}
+
+void GUIInterface::generateTagSearchQuery(sqlite3 *sql, std::string &queryStr, std::vector<std::string> &tags)
+{
+	std::vector<int> ids;
+	tagIdLookup(sql, tags, ids);
+
+	int count = tags.size();
+	queryStr = "";
+	if (count >= 1)
+	{
+		while (count > 0)
+		{
+			queryStr += "(SELECT DISTINCT id FROM entries WHERE entries.tag = ";
+			queryStr += ids[count - 1];
+			count--;
+			if (count > 0) queryStr += "AND entries.id IN ";
+		}
+		for (int i = 0; i < tags.size(); i++) queryStr += ")";
+	}
+}
+
+// If an id is -1, that means it doesn't exist in the database.
+void GUIInterface::tagIdLookup(sqlite3 *sql, std::vector<std::string> &tags, std::vector<int> &ids)
+{
+	struct predResults
+	{
+		int id;
+		predResults()
+		{
+			id = -1;
+		}
+	}results;
+
+	struct predicate
+	{
+		static int func(void *param, int argc, char **argv, char **colname)
+		{
+			predResults *results = static_cast<predResults*>(param);
+			results->id = static_cast<unsigned int>(atoi(argv[0]));
+			return 0;
+		}
+	};
+
+	for (auto i : tags)
+	{
+		std::string str = "SELECT id FROM tags WHERE name = ";
+		str += i;
+		sqlite3_exec(sql, str.c_str(), predicate::func, &results, nullptr);
+		ids.push_back(results.id);
+	}
+}
+
+void GUIInterface::tagIdLookup(sqlite3 *sql, std::string &tag, int &id)
+{
+	auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+		int *i = static_cast<int*>(param);
+		*i = atoi(argv[0]);
+		return 0;
+	};
+
+	int toReturn = -1;
+	std::stringstream query;
+	query << "SELECT id FROM tags WHERE name = '" << tag << "'";
+	sqlite3_exec(sql, query.str().c_str(), callback, &toReturn, nullptr);
+	id = toReturn;
+}
+
+void GUIInterface::generateHtml(mg_connection *conn, GUIInterface *inter, std::string sub, std::string &html)
+{
+	std::stringstream htmlBuf;
+
+	if (sub == "post")
+	{
+		char get[256];
+		std::vector<int> results;
+		// -2 if buffer too small, -1 if not found
+		int getResult = mg_get_var(conn, "tags", get, 256);
+		if (getResult == -1)
+		{
+			inter->queryForTags("", results);
+		}
+		else
+		{
+			inter->queryForTags(get, results);
+		}
+
+		std::vector<std::string> filenames, extensions;
+		inter->queryForEntryInfo(results, filenames, extensions);
+
+		htmlBuf << "<html>";
+		for (int i = 0; i < filenames.size(); i++)
+		{
+			std::string &str = filenames[i];
+			htmlBuf << "sus <img src=\"../preview/" << str.substr(0, 2) << "/" << str.substr(2, 2) << "/" << str << ".jpg\"><a href=\"../images/" << str.substr(0, 2) << "/" << str.substr(2, 2) << "/" << str << "." << extensions[i] << "\"/></img>";
+		}
+		htmlBuf << "</html>";
+	}
+
+	html = htmlBuf.str();
 }

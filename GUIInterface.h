@@ -16,6 +16,7 @@
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Select_Browser.H>
 
+#include <hashlibpp.h>
 #include <Shlwapi.h>
 #include <ximage.h>
 #include <mutex>
@@ -24,9 +25,10 @@
 #include <sstream>
 #include <string>
 #include <filesystem>
+#include <vector>
 
 #include "mongoose.h"
-#include "Server.h"
+//#include "Server.h"
 #include "sqlite3.h"
 #include "tinyfiledialogs.h"
 // 0f05947f75e5d442420790fd15380dd8
@@ -35,12 +37,13 @@
 class GUIInterface
 {
 private:
-	void logMessage(const char *str);
-	void addFile(const char *_path);
-	int findFileInDatabase(const char *filename);
-	bool isFileInDatabase(const char *filename);
-	void queryDatabase(std::string query, int callback(void* param, int argc, char *argv[], char *colname[]), void *userData);
-	int getTopImageId();
+	struct serveArgs
+	{
+		bool *stop;
+		mg_server *server;
+		GUIInterface *inter;
+		sqlite3 *sql;
+	};
 
 	Fl_Window *_window;
 	Fl_Tabs *_tabs;
@@ -77,6 +80,24 @@ public:
 	GUIInterface();
 	~GUIInterface();
 	int show();
+	void logMessage(const char *str);
+	void addFile(const char *_path);
+	int findFileInDatabase(const char *filename);
+	bool isFileInDatabase(const char *filename);
+	void queryDatabase(std::string query, int callback(void* param, int argc, char *argv[], char *colname[]), void *userData);
+	int getTopImageId();
+	void queryForTags(std::string searchText, std::vector<int> &results);
+	void queryForEntryInfo(std::vector<int> &ids, std::vector<std::string> &filename, std::vector<std::string> &ext);
+
+	static void *serve(GUIInterface *inter);
+	static int eventHandler(mg_connection *conn, mg_event event);
+	static void splitString(const std::string str, char delimiter, std::vector<std::string> &list);
+	static void getExtension(const std::string str, std::string &ext);
+	static const char *getMimeType(std::string ext);
+	static void generateTagSearchQuery(sqlite3 *sql, std::string &queryStr, std::vector<std::string> &tags);
+	static void tagIdLookup(sqlite3 *sql, std::vector<std::string> &tags, std::vector<int> &ids);
+	static void tagIdLookup(sqlite3 *sql, std::string &tag, int &ids);
+	static void generateHtml(mg_connection *conn, GUIInterface *inter, std::string sub, std::string &html);
 
 	static void ToggleServer(Fl_Widget* widget, void* data);
 	static void ChangeServerPort(Fl_Widget* widget, void* data);
@@ -86,4 +107,5 @@ public:
 	static void EntriesFilter(Fl_Widget* widget, void* data);
 	static void AnyQuery(Fl_Widget* widget, void* data);
 	static void UpdateEntriesList(Fl_Widget* widget, void* data);
+	static void OpenFileWithDefaultProgram(Fl_Widget* widget, void* data);
 };

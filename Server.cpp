@@ -26,7 +26,9 @@ int Server::eventHandler(mg_connection *conn, mg_event event)
 		if (path.size() == 0)
 		{
 			mg_send_header(conn, "Content-Type", "text/plain");
-			mg_printf_data(conn, "This is going to be the home screen.\nIncoming IP: %s\nLocal IP: %s", conn->remote_ip, conn->local_ip);
+			std::stringstream html;
+			html << "This is going to be the home screen.\nIncoming IP: " << conn->remote_ip << "\nLocal IP: " << conn->local_ip;
+			mg_printf_data(conn, html.str().c_str());
 			return MG_TRUE;
 		}
 		else if (path[0] == "admin")
@@ -43,28 +45,11 @@ int Server::eventHandler(mg_connection *conn, mg_event event)
 		}
 		else if (path[0] == "post")
 		{
-			mg_send_header(conn, "Content-Type", "text/plain");
+			mg_send_header(conn, "Content-Type", "text/html");
+			std::string html;
+			generateHtml(conn, static_cast<serveArgs*>(conn->server_param)->inter, static_cast<serveArgs*>(conn->server_param)->sql, "post", html);
 
-			char get[256];
-			// -2 if buffer too small, -1 if not found
-			int getResult = mg_get_var(conn, "tags", get, 256);
-
-			mg_printf_data(conn, "This is where all of the posts will be displayed.\n");
-			if (getResult > 0)
-			{
-				mg_printf_data(conn, "The following tags were searched:\n");
-				{
-					std::vector<std::string> tags;
-					std::vector<int> ids;
-					splitString(get, ' ', tags);
-					tagIdLookup((sqlite3*)conn->server_param, tags, ids);
-					for (int i = 0; i < tags.size(); i++)
-					{
-						mg_printf_data(conn, "%s\t%d\n", tags[i].c_str(), ids[i]);
-					}
-				}
-			}
-			
+			mg_printf_data(conn, html.c_str());
 			return MG_TRUE;
 		}
 		else if (path[0] == "images" || path[0] == "preview" || path[0] == "movies")
@@ -179,4 +164,53 @@ void Server::tagIdLookup(sqlite3 *sql, std::vector<std::string> &tags, std::vect
 		sqlite3_exec(sql, str.c_str(), predicate::func, &results, nullptr);
 		ids.push_back(results.id);
 	}
+}
+
+void Server::tagIdLookup(sqlite3 *sql, std::string &tag, int &id)
+{
+	auto callback = [](void* param, int argc, char *argv[], char *colname[]) -> int {
+		int *i = static_cast<int*>(param);
+		*i = atoi(argv[0]);
+		return 0;
+	};
+
+	int toReturn = -1;
+	std::stringstream query;
+	query << "SELECT id FROM tags WHERE name = '" << tag << "'";
+	sqlite3_exec(sql, query.str().c_str(), callback, &toReturn, nullptr);
+	id = toReturn;
+}
+
+void Server::generateHtml(mg_connection *conn, GUIInterface *inter, sqlite3 *sql, std::string sub, std::string &html)
+{
+	std::stringstream htmlBuf;
+
+	if (sub == "post")
+	{
+		char get[256];
+		std::vector<int> results;
+		// -2 if buffer too small, -1 if not found
+		int getResult = mg_get_var(conn, "tags", get, 256);
+		if (getResult == -1)
+		{
+			inter->queryForTags("", results);
+		}
+		else
+		{
+			inter->queryForTags(get, results);
+		}
+
+		std::vector<std::string> filenames, extensions;
+		inter->queryForEntryInfo(results, filenames, extensions);
+
+		htmlBuf << "<html>";
+		for (int i = 0; i < filenames.size(); i++)
+		{
+			std::string &str = filenames[i];
+			htmlBuf << "<img src=\"preview/" << str.substr(0, 2) << "/" << str.substr(2, 2) << "/" << str << ".jpg/>";
+		}
+		htmlBuf << "</html>";
+	}
+
+	html = htmlBuf.str();
 }
